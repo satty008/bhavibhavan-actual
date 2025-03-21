@@ -9,7 +9,8 @@ import {
   type SyncServerSimpleFinAccount,
   type SyncServerPluggyAiAccount,
 } from '../../types/models';
-import { addNotification } from '../actions';
+import { resetApp } from '../app/appSlice';
+import { addNotification } from '../notifications/notificationsSlice';
 import {
   getAccounts,
   getPayees,
@@ -68,6 +69,9 @@ const accountsSlice = createSlice({
     ) {
       delete state.failedAccounts[action.payload.id];
     },
+  },
+  extraReducers: builder => {
+    builder.addCase(resetApp, () => initialState);
   },
 });
 
@@ -187,16 +191,20 @@ function handleSyncResponse(
     if ('type' in error && error.type === 'SyncError') {
       dispatch(
         addNotification({
-          type: 'error',
-          message: error.message,
+          notification: {
+            type: 'error',
+            message: error.message,
+          },
         }),
       );
     } else {
       dispatch(
         addNotification({
-          type: 'error',
-          message: error.message,
-          internal: 'internal' in error ? error.internal : undefined,
+          notification: {
+            type: 'error',
+            message: error.message,
+            internal: 'internal' in error ? error.internal : undefined,
+          },
         }),
       );
     }
@@ -245,7 +253,11 @@ export const syncAccounts = createAppAsyncThunk(
     const { setAccountsSyncing } = accountsSlice.actions;
     dispatch(setAccountsSyncing({ ids: accountIdsToSync }));
 
-    const accountsData: AccountEntity[] = await send('accounts-get');
+    // TODO: Force cast to AccountEntity.
+    // Server is currently returning the DB model it should return the entity model instead.
+    const accountsData = (await send(
+      'accounts-get',
+    )) as unknown as AccountEntity[];
     const simpleFinAccounts = accountsData.filter(
       a => a.account_sync_source === 'simpleFin',
     );
@@ -321,7 +333,7 @@ export const syncAccounts = createAppAsyncThunk(
 
 type MoveAccountPayload = {
   id: AccountEntity['id'];
-  targetId: AccountEntity['id'];
+  targetId: AccountEntity['id'] | null;
 };
 
 export const moveAccount = createAppAsyncThunk(

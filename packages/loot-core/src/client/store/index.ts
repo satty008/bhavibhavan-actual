@@ -8,69 +8,47 @@ import {
 import {
   name as accountsSliceName,
   reducer as accountsSliceReducer,
-  getInitialState as getInitialAccountsState,
 } from '../accounts/accountsSlice';
-import { addNotification } from '../actions';
 import {
   name as appSliceName,
   reducer as appSliceReducer,
-  getInitialState as getInitialAppState,
 } from '../app/appSlice';
 import {
   name as budgetsSliceName,
   reducer as budgetsSliceReducer,
-  getInitialState as getInitialBudgetsState,
 } from '../budgets/budgetsSlice';
-import * as constants from '../constants';
 import {
   name as modalsSliceName,
   reducer as modalsSliceReducer,
-  getInitialState as getInitialModalsState,
 } from '../modals/modalsSlice';
+import {
+  name as notificationsSliceName,
+  reducer as notificationsSliceReducer,
+  addNotification,
+} from '../notifications/notificationsSlice';
+import {
+  name as prefsSliceName,
+  reducer as prefsSliceReducer,
+} from '../prefs/prefsSlice';
 import {
   name as queriesSliceName,
   reducer as queriesSliceReducer,
-  getInitialState as getInitialQueriesState,
 } from '../queries/queriesSlice';
-import { reducers } from '../reducers';
-import { initialState as initialNotificationsState } from '../reducers/notifications';
-import { initialState as initialPrefsState } from '../reducers/prefs';
-import { initialState as initialUserState } from '../reducers/user';
+import {
+  name as usersSliceName,
+  reducer as usersSliceReducer,
+} from '../users/usersSlice';
 
-const appReducer = combineReducers({
-  ...reducers,
+const rootReducer = combineReducers({
   [accountsSliceName]: accountsSliceReducer,
   [appSliceName]: appSliceReducer,
   [budgetsSliceName]: budgetsSliceReducer,
   [modalsSliceName]: modalsSliceReducer,
+  [notificationsSliceName]: notificationsSliceReducer,
+  [prefsSliceName]: prefsSliceReducer,
   [queriesSliceName]: queriesSliceReducer,
+  [usersSliceName]: usersSliceReducer,
 });
-const rootReducer: typeof appReducer = (state, action) => {
-  if (action.type === constants.CLOSE_BUDGET) {
-    // Reset the state and only keep around things intentionally. This
-    // blows away everything else
-    state = {
-      account: getInitialAccountsState(),
-      modals: getInitialModalsState(),
-      notifications: initialNotificationsState,
-      queries: getInitialQueriesState(),
-      budgets: state?.budgets || getInitialBudgetsState(),
-      user: state?.user || initialUserState,
-      prefs: {
-        local: initialPrefsState.local,
-        global: state?.prefs?.global || initialPrefsState.global,
-        synced: initialPrefsState.synced,
-      },
-      app: {
-        ...getInitialAppState(),
-        managerHasInitialized: state?.app?.managerHasInitialized || false,
-        loadingText: state?.app?.loadingText || null,
-      },
-    };
-  }
-
-  return appReducer(state, action);
-};
 
 const notifyOnRejectedActionsMiddleware = createListenerMiddleware();
 notifyOnRejectedActionsMiddleware.startListening({
@@ -79,9 +57,11 @@ notifyOnRejectedActionsMiddleware.startListening({
     console.error(action.error);
     dispatch(
       addNotification({
-        id: action.type,
-        type: 'error',
-        message: action.error.message || 'An unexpected error occurred.',
+        notification: {
+          id: action.type,
+          type: 'error',
+          message: action.error.message || 'An unexpected error occurred.',
+        },
       }),
     );
   },

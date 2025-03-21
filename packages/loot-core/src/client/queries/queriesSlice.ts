@@ -12,7 +12,11 @@ import {
   type AccountEntity,
   type PayeeEntity,
 } from '../../types/models';
-import { addGenericErrorNotification, addNotification } from '../actions';
+import { resetApp } from '../app/appSlice';
+import {
+  addGenericErrorNotification,
+  addNotification,
+} from '../notifications/notificationsSlice';
 import { createAppAsyncThunk } from '../redux';
 
 const sliceName = 'queries';
@@ -151,6 +155,10 @@ const queriesSlice = createSlice({
       state.payees = action.payload;
       state.payeesLoaded = true;
     });
+
+    // App
+
+    builder.addCase(resetApp, () => initialState);
   },
 });
 
@@ -224,7 +232,9 @@ export const updateAccount = createAppAsyncThunk(
 export const getAccounts = createAppAsyncThunk(
   `${sliceName}/getAccounts`,
   async () => {
-    const accounts: AccountEntity[] = await send('accounts-get');
+    // TODO: Force cast to AccountEntity.
+    // Server is currently returning the DB model it should return the entity model instead.
+    const accounts = (await send('accounts-get')) as AccountEntity[];
     return accounts;
   },
 );
@@ -314,11 +324,13 @@ export const deleteCategory = createAppAsyncThunk(
         case 'category-type':
           dispatch(
             addNotification({
-              id: `${sliceName}/deleteCategory/transfer`,
-              type: 'error',
-              message: t(
-                'A category must be transferred to another of the same type (expense or income)',
-              ),
+              notification: {
+                id: `${sliceName}/deleteCategory/transfer`,
+                type: 'error',
+                message: t(
+                  'A category must be transferred to another of the same type (expense or income)',
+                ),
+              },
             }),
           );
           break;
@@ -334,7 +346,7 @@ export const deleteCategory = createAppAsyncThunk(
 type MoveCategoryPayload = {
   id: CategoryEntity['id'];
   groupId: CategoryGroupEntity['id'];
-  targetId: CategoryEntity['id'];
+  targetId: CategoryEntity['id'] | null;
 };
 
 export const moveCategory = createAppAsyncThunk(
@@ -584,35 +596,43 @@ export const applyBudgetAction = createAppAsyncThunk(
         await send('budget/set-12month-avg', { month });
         break;
       case 'check-templates':
-        dispatch(addNotification(await send('budget/check-templates')));
+        dispatch(
+          addNotification({
+            notification: await send('budget/check-templates'),
+          }),
+        );
         break;
       case 'apply-goal-template':
         dispatch(
-          addNotification(await send('budget/apply-goal-template', { month })),
+          addNotification({
+            notification: await send('budget/apply-goal-template', { month }),
+          }),
         );
         break;
       case 'overwrite-goal-template':
         dispatch(
-          addNotification(
-            await send('budget/overwrite-goal-template', { month }),
-          ),
+          addNotification({
+            notification: await send('budget/overwrite-goal-template', {
+              month,
+            }),
+          }),
         );
         break;
       case 'apply-single-category-template':
         dispatch(
-          addNotification(
-            await send('budget/apply-single-template', {
+          addNotification({
+            notification: await send('budget/apply-single-template', {
               month,
               category: args.category,
             }),
-          ),
+          }),
         );
         break;
       case 'cleanup-goal-template':
         dispatch(
-          addNotification(
-            await send('budget/cleanup-goal-template', { month }),
-          ),
+          addNotification({
+            notification: await send('budget/cleanup-goal-template', { month }),
+          }),
         );
         break;
       case 'hold':
@@ -662,12 +682,12 @@ export const applyBudgetAction = createAppAsyncThunk(
       }
       case 'apply-multiple-templates':
         dispatch(
-          addNotification(
-            await send('budget/apply-multiple-templates', {
+          addNotification({
+            notification: await send('budget/apply-multiple-templates', {
               month,
               categoryIds: args.categories,
             }),
-          ),
+          }),
         );
         break;
       case 'set-single-3-avg':
@@ -725,8 +745,10 @@ export const importPreviewTransactions = createAppAsyncThunk(
     errors.forEach(error => {
       dispatch(
         addNotification({
-          type: 'error',
-          message: error.message,
+          notification: {
+            type: 'error',
+            message: error.message,
+          },
         }),
       );
     });
@@ -769,8 +791,10 @@ export const importTransactions = createAppAsyncThunk(
     errors.forEach(error => {
       dispatch(
         addNotification({
-          type: 'error',
-          message: error.message,
+          notification: {
+            type: 'error',
+            message: error.message,
+          },
         }),
       );
     });

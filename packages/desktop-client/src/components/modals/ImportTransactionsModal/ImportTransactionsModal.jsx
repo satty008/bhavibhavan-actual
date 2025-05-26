@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 
 import { Button, ButtonWithLoading } from '@actual-app/components/button';
 import { Input } from '@actual-app/components/input';
@@ -10,21 +10,8 @@ import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import deepEqual from 'deep-equal';
 
-import {
-  getPayees,
-  importPreviewTransactions,
-  importTransactions,
-} from 'loot-core/client/queries/queriesSlice';
 import { send } from 'loot-core/platform/client/fetch';
 import { amountToInteger } from 'loot-core/shared/util';
-
-import { useCategories } from '../../../hooks/useCategories';
-import { useDateFormat } from '../../../hooks/useDateFormat';
-import { useSyncedPrefs } from '../../../hooks/useSyncedPrefs';
-import { useDispatch } from '../../../redux';
-import { Modal, ModalCloseButton, ModalHeader } from '../../common/Modal';
-import { SectionLabel } from '../../forms';
-import { TableHeader, TableWithNavigator } from '../../table';
 
 import { CheckboxOption } from './CheckboxOption';
 import { DateFormatSelect } from './DateFormatSelect';
@@ -39,6 +26,26 @@ import {
   parseDate,
   stripCsvImportTransaction,
 } from './utils';
+
+import {
+  Modal,
+  ModalCloseButton,
+  ModalHeader,
+} from '@desktop-client/components/common/Modal';
+import { SectionLabel } from '@desktop-client/components/forms';
+import {
+  TableHeader,
+  TableWithNavigator,
+} from '@desktop-client/components/table';
+import { useCategories } from '@desktop-client/hooks/useCategories';
+import { useDateFormat } from '@desktop-client/hooks/useDateFormat';
+import { useSyncedPrefs } from '@desktop-client/hooks/useSyncedPrefs';
+import {
+  getPayees,
+  importPreviewTransactions,
+  importTransactions,
+} from '@desktop-client/queries/queriesSlice';
+import { useDispatch } from '@desktop-client/redux';
 
 function getFileType(filepath) {
   const m = filepath.match(/\.([^.]*)$/);
@@ -163,6 +170,7 @@ export function ImportTransactionsModal({
   const [flipAmount, setFlipAmount] = useState(false);
   const [multiplierEnabled, setMultiplierEnabled] = useState(false);
   const [reconcile, setReconcile] = useState(true);
+  const [importNotes, setImportNotes] = useState(true);
 
   // This cannot be set after parsing the file, because changing it
   // requires re-parsing the file. This is different from the other
@@ -206,6 +214,7 @@ export function ImportTransactionsModal({
       multiplierAmount,
     ) => {
       const previewTransactions = [];
+      const inOutModeEnabled = isOfxFile(filetype) ? false : inOutMode;
 
       for (let trans of transactions) {
         if (trans.isMatchedTransaction) {
@@ -236,7 +245,7 @@ export function ImportTransactionsModal({
         const { amount } = parseAmountFields(
           trans,
           splitMode,
-          isOfxFile(filetype) ? false : inOutMode,
+          inOutModeEnabled,
           outValue,
           flipAmount,
           multiplierAmount,
@@ -411,7 +420,9 @@ export function ImportTransactionsModal({
         setTransactions(transactionPreview);
       }
     },
-    [accountId, getImportPreview, inOutMode, multiplierAmount, outValue, prefs],
+    // We use some state variables from the component, but do not want to re-parse when they change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [accountId, getImportPreview, prefs],
   );
 
   function onMultiplierChange(e) {
@@ -429,6 +440,7 @@ export function ImportTransactionsModal({
       hasHeaderRow,
       skipLines,
       fallbackMissingPayeeToMemo,
+      importNotes,
     });
 
     parse(originalFileName, parseOptions);
@@ -438,6 +450,7 @@ export function ImportTransactionsModal({
     hasHeaderRow,
     skipLines,
     fallbackMissingPayeeToMemo,
+    importNotes,
     parse,
   ]);
 
@@ -446,14 +459,8 @@ export function ImportTransactionsModal({
       return;
     }
 
-    if (flipAmount === true) {
-      setFlipAmount(!flipAmount);
-    }
-
     const isSplit = !splitMode;
     setSplitMode(isSplit);
-    setInOutMode(false);
-    setFlipAmount(false);
 
     // Run auto-detection on the fields to try to detect the fields
     // automatically
@@ -489,6 +496,7 @@ export function ImportTransactionsModal({
       hasHeaderRow,
       skipLines,
       fallbackMissingPayeeToMemo,
+      importNotes,
     });
 
     parse(res[0], parseOptions);
@@ -619,6 +627,7 @@ export function ImportTransactionsModal({
         date,
         amount: amountToInteger(amount),
         cleared: clearOnImport,
+        notes: importNotes ? finalTransaction.notes : null,
       });
     }
 
@@ -655,6 +664,7 @@ export function ImportTransactionsModal({
     if (filetype === 'csv' || filetype === 'qif') {
       savePrefs({
         [`flip-amount-${accountId}-${filetype}`]: String(flipAmount),
+        [`import-notes-${accountId}-${filetype}`]: String(importNotes),
       });
     }
 
@@ -843,6 +853,7 @@ export function ImportTransactionsModal({
                   filename,
                   getParseOptions('ofx', {
                     fallbackMissingPayeeToMemo: !fallbackMissingPayeeToMemo,
+                    importNotes,
                   }),
                 );
               }}
@@ -850,6 +861,29 @@ export function ImportTransactionsModal({
               {t('Use Memo as a fallback for empty Payees')}
             </CheckboxOption>
           )}
+
+          {filetype !== 'csv' && (
+            <CheckboxOption
+              id="import_notes"
+              checked={importNotes}
+              onChange={() => {
+                setImportNotes(!importNotes);
+                parse(
+                  filename,
+                  getParseOptions(filetype, {
+                    delimiter,
+                    hasHeaderRow,
+                    skipLines,
+                    fallbackMissingPayeeToMemo,
+                    importNotes: !importNotes,
+                  }),
+                );
+              }}
+            >
+              <Trans>Import notes from file</Trans>
+            </CheckboxOption>
+          )}
+
           {(isOfxFile(filetype) || isCamtFile(filetype)) && (
             <CheckboxOption
               id="form_dont_reconcile"
@@ -915,6 +949,7 @@ export function ImportTransactionsModal({
                               delimiter: value,
                               hasHeaderRow,
                               skipLines,
+                              importNotes,
                             }),
                           );
                         }}
@@ -942,6 +977,7 @@ export function ImportTransactionsModal({
                               delimiter,
                               hasHeaderRow,
                               skipLines: +value,
+                              importNotes,
                             }),
                           );
                         }}
@@ -959,6 +995,7 @@ export function ImportTransactionsModal({
                             delimiter,
                             hasHeaderRow: !hasHeaderRow,
                             skipLines,
+                            importNotes,
                           }),
                         );
                       }}
@@ -993,7 +1030,6 @@ export function ImportTransactionsModal({
                   <CheckboxOption
                     id="form_flip"
                     checked={flipAmount}
-                    disabled={splitMode || inOutMode}
                     onChange={() => {
                       setFlipAmount(!flipAmount);
                       runImportPreview();
@@ -1001,31 +1037,6 @@ export function ImportTransactionsModal({
                   >
                     {t('Flip amount')}
                   </CheckboxOption>
-                  {filetype === 'csv' && (
-                    <>
-                      <CheckboxOption
-                        id="form_split"
-                        checked={splitMode}
-                        disabled={inOutMode || flipAmount}
-                        onChange={() => {
-                          onSplitMode();
-                          runImportPreview();
-                        }}
-                      >
-                        {t('Split amount into separate inflow/outflow columns')}
-                      </CheckboxOption>
-                      <InOutOption
-                        inOutMode={inOutMode}
-                        outValue={outValue}
-                        disabled={splitMode || flipAmount}
-                        onToggle={() => {
-                          setInOutMode(!inOutMode);
-                          runImportPreview();
-                        }}
-                        onChangeText={setOutValue}
-                      />
-                    </>
-                  )}
                   <MultiplierOption
                     multiplierEnabled={multiplierEnabled}
                     multiplierAmount={multiplierAmount}
@@ -1036,6 +1047,29 @@ export function ImportTransactionsModal({
                     }}
                     onChangeAmount={onMultiplierChange}
                   />
+                  {filetype === 'csv' && (
+                    <>
+                      <CheckboxOption
+                        id="form_split"
+                        checked={splitMode}
+                        onChange={() => {
+                          onSplitMode();
+                          runImportPreview();
+                        }}
+                      >
+                        {t('Split amount into separate inflow/outflow columns')}
+                      </CheckboxOption>
+                      <InOutOption
+                        inOutMode={inOutMode}
+                        outValue={outValue}
+                        onToggle={() => {
+                          setInOutMode(!inOutMode);
+                          runImportPreview();
+                        }}
+                        onChangeText={setOutValue}
+                      />
+                    </>
+                  )}
                 </View>
               </Stack>
             </View>
@@ -1084,11 +1118,17 @@ function getParseOptions(fileType, options = {}) {
   if (fileType === 'csv') {
     const { delimiter, hasHeaderRow, skipLines } = options;
     return { delimiter, hasHeaderRow, skipLines };
-  } else if (isOfxFile(fileType)) {
-    const { fallbackMissingPayeeToMemo } = options;
-    return { fallbackMissingPayeeToMemo };
   }
-  return {};
+  if (isOfxFile(fileType)) {
+    const { fallbackMissingPayeeToMemo, importNotes } = options;
+    return { fallbackMissingPayeeToMemo, importNotes };
+  }
+  if (isCamtFile(fileType)) {
+    const { importNotes } = options;
+    return { importNotes };
+  }
+  const { importNotes } = options;
+  return { importNotes };
 }
 
 function isOfxFile(fileType) {

@@ -9,6 +9,9 @@ import {
   type CategoryEntity,
 } from 'loot-core/types/models';
 
+import { RenderMonths } from './RenderMonths';
+import { SidebarCategory } from './SidebarCategory';
+
 import {
   useDraggable,
   useDroppable,
@@ -16,11 +19,9 @@ import {
   type DragState,
   type OnDragChangeCallback,
   type OnDropCallback,
-} from '../sort';
-import { Row } from '../table';
-
-import { RenderMonths } from './RenderMonths';
-import { SidebarCategory } from './SidebarCategory';
+} from '@desktop-client/components/sort';
+import { Row } from '@desktop-client/components/table';
+import { useDragRef } from '@desktop-client/hooks/useDragRef';
 
 type ExpenseCategoryProps = {
   cat: CategoryEntity;
@@ -55,7 +56,7 @@ export function ExpenseCategory({
 }: ExpenseCategoryProps) {
   let dragging = dragState && dragState.item === cat;
 
-  if (dragState && dragState.item.id === cat.cat_group) {
+  if (dragState && dragState.item.id === cat.group) {
     dragging = true;
   }
 
@@ -65,6 +66,7 @@ export function ExpenseCategory({
     item: cat,
     canDrag: editingCell === null,
   });
+  const handleDragRef = useDragRef(dragRef);
 
   const { dropRef, dropPos } = useDroppable({
     types: 'category',
@@ -85,7 +87,7 @@ export function ExpenseCategory({
 
       <View style={{ flex: 1, flexDirection: 'row' }}>
         <SidebarCategory
-          innerRef={dragRef}
+          innerRef={handleDragRef}
           category={cat}
           categoryGroup={categoryGroup}
           dragPreview={dragging && dragState.preview}

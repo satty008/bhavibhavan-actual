@@ -2,7 +2,8 @@
 import mitt from 'mitt';
 
 import { QueryState } from '../../shared/query';
-import { compileQuery, runCompiledQuery, schema, schemaConfig } from '../aql';
+import { compileQuery, aqlCompiledQuery, schema, schemaConfig } from '../aql';
+import { BudgetType } from '../prefs';
 
 import { Graph } from './graph-data-structure';
 import { unresolveName, resolveName } from './util';
@@ -20,7 +21,10 @@ export type Node = {
 };
 
 export class Spreadsheet {
-  _meta;
+  _meta: {
+    createdMonths: Set<string>;
+    budgetType: BudgetType;
+  };
   cacheBarrier;
   computeQueue;
   dirtyCells;
@@ -44,6 +48,7 @@ export class Spreadsheet {
     this.events = mitt();
     this._meta = {
       createdMonths: new Set(),
+      budgetType: 'envelope',
     };
   }
 
@@ -164,7 +169,7 @@ export class Spreadsheet {
             );
           }
         } else if (node.sql) {
-          result = runCompiledQuery(
+          result = aqlCompiledQuery(
             node.query,
             node.sql.sqlPieces,
             node.sql.state,

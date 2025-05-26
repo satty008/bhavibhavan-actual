@@ -15,6 +15,7 @@ import * as fs from '../../platform/server/fs';
 import * as sqlite from '../../platform/server/sqlite';
 import * as monthUtils from '../../shared/months';
 import { groupById } from '../../shared/util';
+import { TransactionEntity } from '../../types/models';
 import { WithRequired } from '../../types/util';
 import {
   schema,
@@ -318,7 +319,13 @@ export async function getCategories(
 
 export async function getCategoriesGrouped(
   ids?: Array<DbCategoryGroup['id']>,
-): Promise<Array<DbCategoryGroup & { categories: DbCategory[] }>> {
+): Promise<
+  Array<
+    DbCategoryGroup & {
+      categories: DbCategory[];
+    }
+  >
+> {
   const categoryGroupWhereIn = ids
     ? `cg.id IN (${toSqlQueryParameters(ids)}) AND`
     : '';
@@ -401,7 +408,7 @@ export async function moveCategoryGroup(
 
 export async function deleteCategoryGroup(
   group: Pick<DbCategoryGroup, 'id'>,
-  transferId?: string,
+  transferId?: DbCategory['id'],
 ) {
   const categories = await all<DbCategory>(
     'SELECT * FROM categories WHERE cat_group = ?',
@@ -475,6 +482,8 @@ export function updateCategory(
   >,
 ) {
   category = categoryModel.validate(category, { update: true });
+  // Change from cat_group to group because category AQL schema named it group.
+  // const { cat_group: group, ...rest } = category;
   return update('categories', category);
 }
 
@@ -512,7 +521,10 @@ export async function deleteCategory(
       [category.id],
     );
     for (const mapping of existingTransfers) {
-      await update('category_mapping', { id: mapping.id, transferId });
+      await update('category_mapping', {
+        id: mapping.id,
+        transferId,
+      });
     }
 
     // Finally, map the category we're about to delete to the new one
@@ -774,7 +786,9 @@ export async function getTransactions(accountId: DbTransaction['acct']) {
   );
 }
 
-export function insertTransaction(transaction) {
+export function insertTransaction(
+  transaction,
+): Promise<TransactionEntity['id']> {
   return insertWithSchema('transactions', transaction);
 }
 

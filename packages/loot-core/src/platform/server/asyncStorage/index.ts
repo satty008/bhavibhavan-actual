@@ -6,12 +6,6 @@ import * as T from './index.d';
 
 export const init: T.Init = function () {};
 
-function commit(trans) {
-  if (trans.commit) {
-    trans.commit();
-  }
-}
-
 export const getItem: T.GetItem = async function (key) {
   const db = await getDatabase();
 
@@ -21,8 +15,8 @@ export const getItem: T.GetItem = async function (key) {
   return new Promise((resolve, reject) => {
     const req = objectStore.get(key);
     req.onerror = e => reject(e);
+    // @ts-expect-error fix me
     req.onsuccess = e => resolve(e.target.result);
-    commit(transaction);
   });
 };
 
@@ -36,7 +30,7 @@ export const setItem: T.SetItem = async function (key, value) {
     const req = objectStore.put(value, key);
     req.onerror = e => reject(e);
     req.onsuccess = () => resolve(undefined);
-    commit(transaction);
+    transaction.commit();
   });
 };
 
@@ -50,30 +44,43 @@ export const removeItem: T.RemoveItem = async function (key) {
     const req = objectStore.delete(key);
     req.onerror = e => reject(e);
     req.onsuccess = () => resolve(undefined);
-    commit(transaction);
+    transaction.commit();
   });
 };
 
 export async function multiGet<K extends readonly (keyof GlobalPrefsJson)[]>(
   keys: K,
-) {
+): Promise<{ [P in K[number]]: GlobalPrefsJson[P] }> {
   const db = await getDatabase();
 
   const transaction = db.transaction(['asyncStorage'], 'readonly');
   const objectStore = transaction.objectStore('asyncStorage');
 
-  const promise = Promise.all(
+  const results = await Promise.all(
     keys.map(key => {
-      return new Promise<[string, string]>((resolve, reject) => {
-        const req = objectStore.get(key);
-        req.onerror = e => reject(e);
-        req.onsuccess = e => resolve([key, e.target.result]);
-      });
+      return new Promise<[K[number], GlobalPrefsJson[K[number]]]>(
+        (resolve, reject) => {
+          const req = objectStore.get(key);
+          req.onerror = e => reject(e);
+          req.onsuccess = e => {
+            const target = e.target as IDBRequest<GlobalPrefsJson[K[number]]>;
+            resolve([key, target.result]);
+          };
+        },
+      );
     }),
   );
 
-  commit(transaction);
-  return promise;
+  transaction.commit();
+
+  // Convert the array of tuples to an object with properly typed properties
+  return results.reduce(
+    (acc, [key, value]) => {
+      acc[key] = value;
+      return acc;
+    },
+    {} as { [P in K[number]]: GlobalPrefsJson[P] },
+  );
 }
 
 export const multiSet: T.MultiSet = async function (keyValues) {
@@ -92,8 +99,8 @@ export const multiSet: T.MultiSet = async function (keyValues) {
     }),
   );
 
-  commit(transaction);
-  return promise;
+  transaction.commit();
+  await promise;
 };
 
 export const multiRemove: T.MultiRemove = async function (keys) {
@@ -112,6 +119,6 @@ export const multiRemove: T.MultiRemove = async function (keys) {
     }),
   );
 
-  commit(transaction);
-  return promise;
+  transaction.commit();
+  await promise;
 };

@@ -28,17 +28,17 @@ import {
   type RuleConditionEntity,
 } from 'loot-core/types/models';
 
-import { useAccounts } from '../../../hooks/useAccounts';
-import { useCategories } from '../../../hooks/useCategories';
-import { useNavigate } from '../../../hooks/useNavigate';
-import { usePrivacyMode } from '../../../hooks/usePrivacyMode';
-import { Container } from '../Container';
-import { getCustomTick } from '../getCustomTick';
-import { numberFormatterTooltip } from '../numberFormatter';
-
 import { adjustTextSize } from './adjustTextSize';
 import { renderCustomLabel } from './renderCustomLabel';
 import { showActivity } from './showActivity';
+
+import { Container } from '@desktop-client/components/reports/Container';
+import { getCustomTick } from '@desktop-client/components/reports/getCustomTick';
+import { numberFormatterTooltip } from '@desktop-client/components/reports/numberFormatter';
+import { useAccounts } from '@desktop-client/hooks/useAccounts';
+import { useCategories } from '@desktop-client/hooks/useCategories';
+import { useNavigate } from '@desktop-client/hooks/useNavigate';
+import { usePrivacyMode } from '@desktop-client/hooks/usePrivacyMode';
 
 type PayloadChild = {
   props: {
@@ -241,30 +241,32 @@ export function BarGraph({
                     isAnimationActive={false}
                   />
                 )}
+                {!compact && <CartesianGrid strokeDasharray="3 3" />}
                 {!compact && (
-                  <>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey={yAxis}
-                      angle={-35}
-                      textAnchor="end"
-                      height={Math.sqrt(longestLabelLength) * 25}
-                      tick={{ fill: theme.pageText }}
-                      tickLine={{ stroke: theme.pageText }}
-                    />
-                    <YAxis
-                      tickFormatter={value =>
-                        getCustomTick(
-                          amountToCurrencyNoDecimal(value),
-                          privacyMode,
-                        )
-                      }
-                      tick={{ fill: theme.pageText }}
-                      tickLine={{ stroke: theme.pageText }}
-                      tickSize={0}
-                    />
-                    <ReferenceLine y={0} stroke={theme.pageTextLight} />
-                  </>
+                  <XAxis
+                    dataKey={yAxis}
+                    angle={-35}
+                    textAnchor="end"
+                    height={Math.sqrt(longestLabelLength) * 25}
+                    tick={{ fill: theme.pageText }}
+                    tickLine={{ stroke: theme.pageText }}
+                  />
+                )}
+                {!compact && (
+                  <YAxis
+                    tickFormatter={value =>
+                      getCustomTick(
+                        amountToCurrencyNoDecimal(value),
+                        privacyMode,
+                      )
+                    }
+                    tick={{ fill: theme.pageText }}
+                    tickLine={{ stroke: theme.pageText }}
+                    tickSize={0}
+                  />
+                )}
+                {!compact && (
+                  <ReferenceLine y={0} stroke={theme.pageTextLight} />
                 )}
                 <Bar
                   dataKey={val => getVal(val)}

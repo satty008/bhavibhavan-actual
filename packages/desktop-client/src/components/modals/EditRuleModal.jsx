@@ -23,10 +23,6 @@ import { View } from '@actual-app/components/view';
 import { css } from '@emotion/css';
 import { v4 as uuid } from 'uuid';
 
-import { useSchedules } from 'loot-core/client/data-hooks/schedules';
-import { initiallyLoadPayees } from 'loot-core/client/queries/queriesSlice';
-import { runQuery } from 'loot-core/client/query-helpers';
-import { enableUndo, disableUndo } from 'loot-core/client/undo';
 import { send } from 'loot-core/platform/client/fetch';
 import * as monthUtils from 'loot-core/shared/months';
 import { q } from 'loot-core/shared/query';
@@ -48,16 +44,27 @@ import {
   amountToInteger,
 } from 'loot-core/shared/util';
 
-import { useDateFormat } from '../../hooks/useDateFormat';
-import { useFeatureFlag } from '../../hooks/useFeatureFlag';
-import { useSelected, SelectedProvider } from '../../hooks/useSelected';
-import { useDispatch } from '../../redux';
-import { Modal, ModalCloseButton, ModalHeader } from '../common/Modal';
-import { StatusBadge } from '../schedules/StatusBadge';
-import { SimpleTransactionsTable } from '../transactions/SimpleTransactionsTable';
-import { BetweenAmountInput } from '../util/AmountInput';
-import { DisplayId } from '../util/DisplayId';
-import { GenericInput } from '../util/GenericInput';
+import {
+  Modal,
+  ModalCloseButton,
+  ModalHeader,
+} from '@desktop-client/components/common/Modal';
+import { StatusBadge } from '@desktop-client/components/schedules/StatusBadge';
+import { SimpleTransactionsTable } from '@desktop-client/components/transactions/SimpleTransactionsTable';
+import { BetweenAmountInput } from '@desktop-client/components/util/AmountInput';
+import { DisplayId } from '@desktop-client/components/util/DisplayId';
+import { GenericInput } from '@desktop-client/components/util/GenericInput';
+import { useDateFormat } from '@desktop-client/hooks/useDateFormat';
+import { useFeatureFlag } from '@desktop-client/hooks/useFeatureFlag';
+import { useSchedules } from '@desktop-client/hooks/useSchedules';
+import {
+  useSelected,
+  SelectedProvider,
+} from '@desktop-client/hooks/useSelected';
+import { aqlQuery } from '@desktop-client/queries/aqlQuery';
+import { initiallyLoadPayees } from '@desktop-client/queries/queriesSlice';
+import { useDispatch } from '@desktop-client/redux';
+import { enableUndo, disableUndo } from '@desktop-client/undo';
 
 function updateValue(array, value, update) {
   return array.map(v => (v === value ? update() : v));
@@ -237,6 +244,18 @@ function ConditionEditor({
     inputKey,
   } = condition;
 
+  const translatedConditions = useMemo(() => {
+    const retValue = [...conditionFields];
+
+    if (retValue && retValue.length > 0) {
+      retValue.forEach(field => {
+        field[1] = mapField(field[0]);
+      });
+    }
+
+    return retValue;
+  }, []);
+
   let field = originalField;
   if (field === 'amount' && options) {
     if (options.inflow) {
@@ -273,7 +292,7 @@ function ConditionEditor({
   return (
     <Editor style={editorStyle} error={error}>
       <FieldSelect
-        fields={conditionFields}
+        fields={translatedConditions}
         value={field}
         onChange={value => onChange('field', value)}
       />
@@ -581,6 +600,12 @@ function ConditionsList({
   onChangeConditions,
 }) {
   function addCondition(index) {
+    if (conditionFields && conditionFields.length > 0) {
+      conditionFields.forEach(field => {
+        field[1] = mapField(field[0]);
+      });
+    }
+
     // (remove the inflow and outflow pseudo-fields since they’d be a pain to get right)
     let fields = conditionFields
       .map(f => f[0])
@@ -822,7 +847,7 @@ export function EditRuleModal({
         const conditionsOpKey = conditionsOp === 'or' ? '$or' : '$and';
         const parentOnlyCondition =
           actionSplits.length > 1 ? { is_child: false } : {};
-        const { data: transactions } = await runQuery(
+        const { data: transactions } = await aqlQuery(
           q('transactions')
             .filter({ [conditionsOpKey]: filters, ...parentOnlyCondition })
             .select('*'),

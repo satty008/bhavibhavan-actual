@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { type FormEvent, useState } from 'react';
+import { Form } from 'react-aria-components';
 import { Trans } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -9,15 +10,17 @@ import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { t } from 'i18next';
 
-import * as queries from 'loot-core/client/queries';
 import { type Query } from 'loot-core/shared/query';
-import { currencyToInteger } from 'loot-core/shared/util';
+import { currencyToInteger, tsToRelativeTime } from 'loot-core/shared/util';
 import { type AccountEntity } from 'loot-core/types/models';
 import { type TransObjectLiteral } from 'loot-core/types/util';
 
-import { useFormat } from '../spreadsheet/useFormat';
-import { useSheetValue } from '../spreadsheet/useSheetValue';
+import { useFormat } from '@desktop-client/components/spreadsheet/useFormat';
+import { useSheetValue } from '@desktop-client/components/spreadsheet/useSheetValue';
+import { useLocale } from '@desktop-client/hooks/useLocale';
+import * as queries from '@desktop-client/queries/queries';
 
 type ReconcilingMessageProps = {
   balanceQuery: { name: `balance-query-${string}`; query: Query };
@@ -125,16 +128,19 @@ export function ReconcileMenu({
   onReconcile,
   onClose,
 }: ReconcileMenuProps) {
-  const balanceQuery = queries.accountBalance(account);
+  const balanceQuery = queries.accountBalance(account.id);
   const clearedBalance = useSheetValue<'account', `balance-${string}-cleared`>({
     name: (balanceQuery.name + '-cleared') as `balance-${string}-cleared`,
     value: null,
     query: balanceQuery.query.filter({ cleared: true }),
   });
   const format = useFormat();
+  const locale = useLocale();
   const [inputValue, setInputValue] = useState<string | null>(null);
 
-  function onSubmit() {
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
     if (inputValue === '') {
       return;
     }
@@ -147,26 +153,37 @@ export function ReconcileMenu({
   }
 
   return (
-    <View style={{ padding: '5px 8px' }}>
-      <Text>
-        <Trans>
-          Enter the current balance of your bank account that you want to
-          reconcile with:
-        </Trans>
-      </Text>
-      {clearedBalance != null && (
-        <InitialFocus>
-          <Input
-            defaultValue={format(clearedBalance, 'financial')}
-            onChangeValue={setInputValue}
-            style={{ margin: '7px 0' }}
-            onEnter={onSubmit}
-          />
-        </InitialFocus>
-      )}
-      <Button variant="primary" onPress={onSubmit}>
-        <Trans>Reconcile</Trans>
-      </Button>
-    </View>
+    <Form onSubmit={onSubmit}>
+      <View style={{ padding: '5px 8px' }}>
+        <Text>
+          <Trans>
+            Enter the current balance of your bank account that you want to
+            reconcile with:
+          </Trans>
+        </Text>
+        {clearedBalance != null && (
+          <InitialFocus>
+            <Input
+              defaultValue={format(clearedBalance, 'financial')}
+              onChangeValue={setInputValue}
+              style={{ margin: '7px 0' }}
+            />
+          </InitialFocus>
+        )}
+        <Text style={{ color: theme.pageTextSubdued, paddingBottom: 6 }}>
+          {account?.last_reconciled
+            ? t('Reconciled {{ relativeTimeAgo }}', {
+                relativeTimeAgo: tsToRelativeTime(
+                  account.last_reconciled,
+                  locale,
+                ),
+              })
+            : t('Not yet reconciled')}
+        </Text>
+        <Button type="submit" variant="primary">
+          <Trans>Reconcile</Trans>
+        </Button>
+      </View>
+    </Form>
   );
 }

@@ -1,4 +1,5 @@
 import React, { type CSSProperties, type MouseEventHandler } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Block } from '@actual-app/components/block';
 import { styles } from '@actual-app/components/styles';
@@ -7,16 +8,15 @@ import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
 import { css } from '@emotion/css';
 
-import { envelopeBudget } from 'loot-core/client/queries';
+import { TotalsList } from './TotalsList';
 
-import { PrivacyFilter } from '../../../PrivacyFilter';
-import { useFormat } from '../../../spreadsheet/useFormat';
 import {
   useEnvelopeSheetName,
   useEnvelopeSheetValue,
-} from '../EnvelopeBudgetComponents';
-
-import { TotalsList } from './TotalsList';
+} from '@desktop-client/components/budget/envelope/EnvelopeBudgetComponents';
+import { PrivacyFilter } from '@desktop-client/components/PrivacyFilter';
+import { useFormat } from '@desktop-client/components/spreadsheet/useFormat';
+import { envelopeBudget } from '@desktop-client/queries/queries';
 
 type ToBudgetAmountProps = {
   prevMonthName: string;
@@ -35,6 +35,7 @@ export function ToBudgetAmount({
   isTotalsListTooltipDisabled = false,
   onContextMenu,
 }: ToBudgetAmountProps) {
+  const { t } = useTranslation();
   const sheetName = useEnvelopeSheetName(envelopeBudget.toBudget);
   const sheetValue = useEnvelopeSheetValue({
     name: envelopeBudget.toBudget,
@@ -52,7 +53,7 @@ export function ToBudgetAmount({
 
   return (
     <View style={{ alignItems: 'center', ...style }}>
-      <Block>{isNegative ? 'Overbudgeted:' : 'To Budget:'}</Block>
+      <Block>{isNegative ? t('Overbudgeted:') : t('To Budget:')}</Block>
       <View>
         <Tooltip
           content={

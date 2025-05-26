@@ -1,14 +1,14 @@
 // @ts-strict-ignore
-import React from 'react';
+import React, { type JSX } from 'react';
 
 import { theme } from '@actual-app/components/theme';
 
 import { type CategoryGroupEntity } from 'loot-core/types/models';
 
-import { Row } from '../table';
-
 import { RenderMonths } from './RenderMonths';
 import { SidebarGroup } from './SidebarGroup';
+
+import { Row } from '@desktop-client/components/table';
 
 type IncomeGroupProps = {
   group: CategoryGroupEntity;

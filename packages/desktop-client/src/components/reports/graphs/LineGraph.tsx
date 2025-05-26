@@ -25,15 +25,15 @@ import {
   type RuleConditionEntity,
 } from 'loot-core/types/models';
 
-import { useAccounts } from '../../../hooks/useAccounts';
-import { useCategories } from '../../../hooks/useCategories';
-import { useNavigate } from '../../../hooks/useNavigate';
-import { usePrivacyMode } from '../../../hooks/usePrivacyMode';
-import { Container } from '../Container';
-import { getCustomTick } from '../getCustomTick';
-import { numberFormatterTooltip } from '../numberFormatter';
-
 import { showActivity } from './showActivity';
+
+import { Container } from '@desktop-client/components/reports/Container';
+import { getCustomTick } from '@desktop-client/components/reports/getCustomTick';
+import { numberFormatterTooltip } from '@desktop-client/components/reports/numberFormatter';
+import { useAccounts } from '@desktop-client/hooks/useAccounts';
+import { useCategories } from '@desktop-client/hooks/useCategories';
+import { useNavigate } from '@desktop-client/hooks/useNavigate';
+import { usePrivacyMode } from '@desktop-client/hooks/usePrivacyMode';
 
 type PayloadItem = {
   dataKey: string;
@@ -196,26 +196,26 @@ export function LineGraph({
                     isAnimationActive={false}
                   />
                 )}
+                {!compact && <CartesianGrid strokeDasharray="3 3" />}
                 {!compact && (
-                  <>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fill: theme.pageText }}
-                      tickLine={{ stroke: theme.pageText }}
-                    />
-                    <YAxis
-                      tickFormatter={value =>
-                        getCustomTick(
-                          amountToCurrencyNoDecimal(value),
-                          privacyMode,
-                        )
-                      }
-                      tick={{ fill: theme.pageText }}
-                      tickLine={{ stroke: theme.pageText }}
-                      tickSize={0}
-                    />
-                  </>
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fill: theme.pageText }}
+                    tickLine={{ stroke: theme.pageText }}
+                  />
+                )}
+                {!compact && (
+                  <YAxis
+                    tickFormatter={value =>
+                      getCustomTick(
+                        amountToCurrencyNoDecimal(value),
+                        privacyMode,
+                      )
+                    }
+                    tick={{ fill: theme.pageText }}
+                    tickLine={{ stroke: theme.pageText }}
+                    tickSize={0}
+                  />
                 )}
                 {data.legend.map((entry, index) => {
                   return (

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useReducer } from 'react';
+import React, { useState, useRef, useEffect, useReducer, useMemo } from 'react';
 import { FocusScope } from 'react-aria';
 import { Form } from 'react-aria-components';
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -20,7 +20,6 @@ import {
   isValid as isDateValid,
 } from 'date-fns';
 
-import { useFilters } from 'loot-core/client/data-hooks/filters';
 import { send } from 'loot-core/platform/client/fetch';
 import { getMonthYearFormat } from 'loot-core/shared/months';
 import {
@@ -33,15 +32,16 @@ import {
 } from 'loot-core/shared/rules';
 import { titleFirst } from 'loot-core/shared/util';
 
-import { useDateFormat } from '../../hooks/useDateFormat';
-import { GenericInput } from '../util/GenericInput';
-
 import { CompactFiltersButton } from './CompactFiltersButton';
 import { FiltersButton } from './FiltersButton';
 import { OpButton } from './OpButton';
 import { subfieldFromFilter } from './subfieldFromFilter';
 import { subfieldToOptions } from './subfieldToOptions';
 import { updateFilterReducer } from './updateFilterReducer';
+
+import { GenericInput } from '@desktop-client/components/util/GenericInput';
+import { useDateFormat } from '@desktop-client/hooks/useDateFormat';
+import { useTransactionFilters } from '@desktop-client/hooks/useTransactionFilters';
 
 let isDatepickerClick = false;
 
@@ -219,7 +219,7 @@ function ConfigureField({
       >
         {type !== 'boolean' && (
           <GenericInput
-            inputRef={inputRef}
+            ref={inputRef}
             field={field}
             subfield={subfield}
             type={
@@ -259,10 +259,22 @@ function ConfigureField({
 
 export function FilterButton({ onApply, compact, hover, exclude }) {
   const { t } = useTranslation();
-  const filters = useFilters();
+  const filters = useTransactionFilters();
   const triggerRef = useRef(null);
 
   const dateFormat = useDateFormat() || 'MM/dd/yyyy';
+
+  const translatedFilterFields = useMemo(() => {
+    const retValue = [...filterFields];
+
+    if (retValue && retValue.length > 0) {
+      retValue.forEach(field => {
+        field[1] = mapField(field[0]);
+      });
+    }
+
+    return retValue;
+  }, []);
 
   const [state, dispatch] = useReducer(
     (state, action) => {
@@ -379,12 +391,12 @@ export function FilterButton({ onApply, compact, hover, exclude }) {
           onMenuSelect={name => {
             dispatch({ type: 'configure', field: name });
           }}
-          items={filterFields
+          items={translatedFilterFields
             .filter(f => (exclude ? !exclude.includes(f[0]) : true))
             .sort()
             .map(([name, text]) => ({
               name,
-              text: titleFirst(mapField(text)),
+              text: titleFirst(text),
             }))}
         />
       </Popover>

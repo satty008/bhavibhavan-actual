@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -8,18 +8,21 @@ import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import { useHover } from 'usehooks-ts';
 
-import { useCachedSchedules } from 'loot-core/client/data-hooks/schedules';
 import { q, type Query } from 'loot-core/shared/query';
 import { getScheduledAmount } from 'loot-core/shared/schedules';
 import { isPreviewId } from 'loot-core/shared/transactions';
 import { type AccountEntity } from 'loot-core/types/models';
 
-import { useSelectedItems } from '../../hooks/useSelected';
-import { PrivacyFilter } from '../PrivacyFilter';
-import { type Binding } from '../spreadsheet';
-import { CellValue, CellValueText } from '../spreadsheet/CellValue';
-import { useFormat } from '../spreadsheet/useFormat';
-import { useSheetValue } from '../spreadsheet/useSheetValue';
+import { PrivacyFilter } from '@desktop-client/components/PrivacyFilter';
+import { type Binding } from '@desktop-client/components/spreadsheet';
+import {
+  CellValue,
+  CellValueText,
+} from '@desktop-client/components/spreadsheet/CellValue';
+import { useFormat } from '@desktop-client/components/spreadsheet/useFormat';
+import { useSheetValue } from '@desktop-client/components/spreadsheet/useSheetValue';
+import { useCachedSchedules } from '@desktop-client/hooks/useCachedSchedules';
+import { useSelectedItems } from '@desktop-client/hooks/useSelected';
 
 type DetailedBalanceProps = {
   name: string;
@@ -189,8 +192,8 @@ export function Balances({
   filteredAmount,
 }: BalancesProps) {
   const selectedItems = useSelectedItems();
-  const buttonRef = useRef(null);
-  const isButtonHovered = useHover(buttonRef);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const isButtonHovered = useHover(buttonRef as RefObject<HTMLButtonElement>);
 
   return (
     <View

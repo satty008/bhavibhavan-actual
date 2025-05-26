@@ -2,7 +2,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { addTransactions } from '../server/accounts/sync';
-import { runQuery as aqlQuery } from '../server/aql';
+import { aqlQuery } from '../server/aql';
 import * as budgetActions from '../server/budget/actions';
 import * as budget from '../server/budget/base';
 import * as db from '../server/db';
@@ -14,12 +14,13 @@ import { q } from '../shared/query';
 import type { Handlers } from '../types/handlers';
 import type {
   CategoryGroupEntity,
-  NewCategoryGroupEntity,
   PayeeEntity,
   TransactionEntity,
 } from '../types/models';
 
 import { random } from './random';
+
+import { CategoryGroupDefinition } from '.';
 
 type MockPayeeEntity = Partial<PayeeEntity> & { bill?: boolean };
 
@@ -651,7 +652,7 @@ export async function createTestBudget(handlers: Handlers) {
     }),
   );
 
-  const newCategoryGroups: Array<NewCategoryGroupEntity> = [
+  const newCategoryGroups: Array<CategoryGroupDefinition> = [
     {
       name: 'Usual Expenses',
       categories: [
@@ -710,6 +711,7 @@ export async function createTestBudget(handlers: Handlers) {
         categoryGroups[categoryGroups.length - 1].categories.push({
           ...category,
           id: categoryId,
+          group: groupId,
         });
       }
     }

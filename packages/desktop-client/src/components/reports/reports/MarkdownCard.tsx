@@ -9,11 +9,12 @@ import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import { css } from '@emotion/css';
+import rehypeExternalLinks from 'rehype-external-links';
 
 import { type MarkdownWidget } from 'loot-core/types/models';
 
-import { NON_DRAGGABLE_AREA_CLASS_NAME } from '../constants';
-import { ReportCard } from '../ReportCard';
+import { NON_DRAGGABLE_AREA_CLASS_NAME } from '@desktop-client/components/reports/constants';
+import { ReportCard } from '@desktop-client/components/reports/ReportCard';
 
 const markdownStyles = css({
   paddingRight: 20,
@@ -134,7 +135,16 @@ export function MarkdownCard({
           />
         ) : (
           <Text className={markdownStyles}>
-            <ReactMarkdown linkTarget="_blank">{meta.content}</ReactMarkdown>
+            <ReactMarkdown
+              rehypePlugins={[
+                [
+                  rehypeExternalLinks,
+                  { target: '_blank', rel: ['noopener', 'noreferrer'] },
+                ],
+              ]}
+            >
+              {meta.content}
+            </ReactMarkdown>
           </Text>
         )}
       </View>

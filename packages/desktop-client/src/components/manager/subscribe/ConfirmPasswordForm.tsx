@@ -6,6 +6,7 @@ import { ButtonWithLoading } from '@actual-app/components/button';
 import { BigInput } from '@actual-app/components/input';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { css } from '@emotion/css';
 
 type ConfirmPasswordFormProps = {
   buttons: ReactNode;
@@ -94,7 +95,11 @@ export function ConfirmPasswordForm({
   );
 }
 
-export function ConfirmOldPasswordForm({ buttons, onSetPassword }) {
+export function ConfirmOldPasswordForm({
+  buttons,
+  onSetPassword,
+  style = null,
+}) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -121,6 +126,7 @@ export function ConfirmOldPasswordForm({ buttons, onSetPassword }) {
         flexDirection: 'column',
         alignItems: 'stretch',
         marginTop: 30,
+        ...style,
       }}
     >
       <BigInput
@@ -132,12 +138,12 @@ export function ConfirmOldPasswordForm({ buttons, onSetPassword }) {
           setPassword(e.target.value)
         }
         onEnter={onSubmit}
-        style={{
+        className={css({
           borderColor: theme.buttonMenuBorder,
           borderWidth: 1,
           borderStyle: 'solid',
-          ':focus': {},
-        }}
+          '&[data-focused]': {},
+        })}
       />
 
       <View

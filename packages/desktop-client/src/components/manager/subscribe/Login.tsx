@@ -1,31 +1,36 @@
 // @ts-strict-ignore
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 
 import { Button, ButtonWithLoading } from '@actual-app/components/button';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { AnimatedLoading } from '@actual-app/components/icons/AnimatedLoading';
-import { BigInput } from '@actual-app/components/input';
-import { Label } from '@actual-app/components/label';
-import { Select } from '@actual-app/components/select';
+import { SvgCheveronDown } from '@actual-app/components/icons/v1';
+import { ResponsiveInput } from '@actual-app/components/input';
+import { Menu } from '@actual-app/components/menu';
+import { Popover } from '@actual-app/components/popover';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { loggedIn } from 'loot-core/client/users/usersSlice';
 import { send } from 'loot-core/platform/client/fetch';
 import { isElectron } from 'loot-core/shared/environment';
 import { type OpenIdConfig } from 'loot-core/types/models';
 
-import { useNavigate } from '../../../hooks/useNavigate';
-import { useDispatch } from '../../../redux';
-import { Link } from '../../common/Link';
-import { useAvailableLoginMethods, useLoginMethod } from '../../ServerContext';
-
 import { useBootstrapped, Title } from './common';
 import { OpenIdForm } from './OpenIdForm';
+
+import { Link } from '@desktop-client/components/common/Link';
+import {
+  useAvailableLoginMethods,
+  useLoginMethod,
+} from '@desktop-client/components/ServerContext';
+import { useNavigate } from '@desktop-client/hooks/useNavigate';
+import { useDispatch } from '@desktop-client/redux';
+import { warningBackground } from '@desktop-client/style/themes/dark';
+import { loggedIn } from '@desktop-client/users/usersSlice';
 
 function PasswordLogin({ setError, dispatch }) {
   const [password, setPassword] = useState('');
@@ -61,18 +66,22 @@ function PasswordLogin({ setError, dispatch }) {
         gap: '1rem',
       }}
     >
-      <BigInput
+      <ResponsiveInput
         autoFocus={true}
         placeholder={t('Password')}
         type="password"
-        onChangeValue={newValue => setPassword(newValue)}
+        onChangeValue={setPassword}
         style={{ flex: 1 }}
         onEnter={onSubmitPassword}
       />
       <ButtonWithLoading
         variant="primary"
         isLoading={loading}
-        style={{ fontSize: 15, width: isNarrowWidth ? '100%' : 170 }}
+        style={{
+          fontSize: 15,
+          width: isNarrowWidth ? '100%' : 170,
+          ...(isNarrowWidth ? { padding: 10 } : null),
+        }}
         onPress={onSubmitPassword}
       >
         <Trans>Sign in</Trans>
@@ -82,10 +91,16 @@ function PasswordLogin({ setError, dispatch }) {
 }
 
 function OpenIdLogin({ setError }) {
+  const { t } = useTranslation();
+  const { isNarrowWidth } = useResponsive();
   const [warnMasterCreation, setWarnMasterCreation] = useState(false);
+  const loginMethods = useAvailableLoginMethods();
+  const [askForPassword, setAskForPassword] = useState(false);
   const [reviewOpenIdConfiguration, setReviewOpenIdConfiguration] =
     useState(false);
   const navigate = useNavigate();
+  const [openIdConfig, setOpenIdConfig] = useState<OpenIdConfig | null>(null);
+  const [firstLoginPassword, setFirstLoginPassword] = useState<string>('');
 
   async function onSetOpenId(config: OpenIdConfig) {
     setError(null);
@@ -102,21 +117,30 @@ function OpenIdLogin({ setError }) {
     send('owner-created').then(created => setWarnMasterCreation(!created));
   }, []);
 
+  useEffect(() => {
+    if (loginMethods.some(method => method.method === 'password')) {
+      setAskForPassword(true);
+    } else {
+      setAskForPassword(false);
+    }
+  }, [loginMethods]);
+
   async function onSubmitOpenId() {
-    const { error, redirect_url } = await send('subscribe-sign-in', {
-      return_url: isElectron()
+    const { error, redirectUrl } = await send('subscribe-sign-in', {
+      returnUrl: isElectron()
         ? await window.Actual.startOAuthServer()
         : window.location.origin,
       loginMethod: 'openid',
+      password: firstLoginPassword,
     });
 
     if (error) {
       setError(error);
     } else {
       if (isElectron()) {
-        window.Actual?.openURLInBrowser(redirect_url);
+        window.Actual?.openURLInBrowser(redirectUrl);
       } else {
-        window.location.href = redirect_url;
+        window.location.href = redirectUrl;
       }
     }
   }
@@ -125,18 +149,46 @@ function OpenIdLogin({ setError }) {
     <View>
       {!reviewOpenIdConfiguration && (
         <>
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'flex-end',
+              marginTop: 5,
+              gap: '1rem',
+            }}
+          >
+            {warnMasterCreation && askForPassword && (
+              <ResponsiveInput
+                autoFocus={true}
+                placeholder={t('Enter server password')}
+                type="password"
+                onChangeValue={newValue => {
+                  setFirstLoginPassword(newValue);
+                }}
+                style={{ flex: 1 }}
+              />
+            )}
             <Button
               variant="primary"
-              style={{
-                padding: 10,
-                fontSize: 14,
-                width: 170,
-                marginTop: 5,
-              }}
               onPress={onSubmitOpenId}
+              style={
+                warningBackground && {
+                  padding: 6,
+                  fontSize: 14,
+                  width: 170,
+                }
+              }
+              isDisabled={
+                firstLoginPassword === '' &&
+                askForPassword &&
+                warnMasterCreation
+              }
             >
-              <Trans>Sign in with OpenID</Trans>
+              {warnMasterCreation ? (
+                <Trans>Start using OpenID</Trans>
+              ) : (
+                <Trans>Sign in with OpenID</Trans>
+              )}
             </Button>
           </View>
           {warnMasterCreation && (
@@ -148,34 +200,72 @@ function OpenIdLogin({ setError }) {
                   can&apos;t be changed using UI.
                 </Trans>
               </label>
-              <Button
-                variant="bare"
-                onPress={() => setReviewOpenIdConfiguration(true)}
-                style={{ marginTop: 5 }}
-              >
-                <Trans>Review OpenID configuration</Trans>
-              </Button>
+              {askForPassword && (
+                <Button
+                  variant="bare"
+                  isDisabled={firstLoginPassword === '' && warnMasterCreation}
+                  onPress={() => {
+                    send('get-openid-config', {
+                      password: firstLoginPassword,
+                    }).then(config => {
+                      if ('error' in config) {
+                        setError(config.error);
+                      } else if ('openId' in config) {
+                        setError(null);
+                        setOpenIdConfig(config.openId);
+                        setReviewOpenIdConfiguration(true);
+                      }
+                    });
+                  }}
+                  style={{
+                    marginTop: 5,
+                    ...(isNarrowWidth ? { padding: 10 } : null),
+                  }}
+                >
+                  <Trans>Review OpenID configuration</Trans>
+                </Button>
+              )}
             </>
           )}
         </>
       )}
       {reviewOpenIdConfiguration && (
-        <OpenIdForm
-          loadData={true}
-          otherButtons={[
-            <Button
-              key="cancel"
-              variant="bare"
-              style={{ marginRight: 10 }}
-              onPress={() => setReviewOpenIdConfiguration(false)}
-            >
-              <Trans>Cancel</Trans>
-            </Button>,
-          ]}
-          onSetOpenId={async config => {
-            onSetOpenId(config);
-          }}
-        />
+        <View style={{ marginTop: 20 }}>
+          <Text
+            style={{
+              ...styles.verySmallText,
+              color: theme.pageTextLight,
+              fontWeight: 'bold ',
+              width: '100%',
+              textAlign: 'center',
+            }}
+          >
+            <Trans>Review OpenID configuration</Trans>
+          </Text>
+          <OpenIdForm
+            openIdData={openIdConfig}
+            otherButtons={[
+              <Button
+                key="cancel"
+                variant="bare"
+                style={{
+                  marginRight: 10,
+                  ...(isNarrowWidth && { padding: 10 }),
+                }}
+                onPress={() => {
+                  setReviewOpenIdConfiguration(false);
+                  setOpenIdConfig(null);
+                  setFirstLoginPassword('');
+                }}
+              >
+                <Trans>Cancel</Trans>
+              </Button>,
+            ]}
+            onSetOpenId={async config => {
+              onSetOpenId(config);
+            }}
+          />
+        </View>
       )}
     </View>
   );
@@ -211,6 +301,7 @@ function HeaderLogin({ error }) {
 
 export function Login() {
   const { t } = useTranslation();
+  const { isNarrowWidth } = useResponsive();
 
   const dispatch = useDispatch();
   const defaultLoginMethod = useLoginMethod();
@@ -219,6 +310,8 @@ export function Login() {
   const [error, setError] = useState(null);
   const { checked } = useBootstrapped();
   const loginMethods = useAvailableLoginMethods();
+  const loginMethodRef = useRef<HTMLButtonElement>(null);
+  const [loginMethodMenuOpen, setLoginMethodMenuOpen] = useState(false);
 
   useEffect(() => {
     setMethod(defaultLoginMethod);
@@ -285,24 +378,60 @@ export function Login() {
         </Text>
       )}
 
+      {method === 'password' && (
+        <PasswordLogin setError={setError} dispatch={dispatch} />
+      )}
+
+      {method === 'openid' && <OpenIdLogin setError={setError} />}
+
+      {method === 'header' && <HeaderLogin error={error} />}
+
       {loginMethods?.length > 1 && (
         <View style={{ marginTop: 10 }}>
-          <Label
+          <View
             style={{
-              ...styles.verySmallText,
-              color: theme.pageTextLight,
-              paddingTop: 5,
+              width: '100%',
+              flexDirection: 'row',
+              justifyContent: 'end',
             }}
-            title={t('Select the login method')}
-          />
-          <Select
-            value={method}
-            onChange={newValue => {
-              setError(null);
-              setMethod(newValue);
+          >
+            <Button
+              variant="bare"
+              ref={loginMethodRef}
+              onPress={() => setLoginMethodMenuOpen(true)}
+              style={{
+                ...styles.verySmallText,
+                color: theme.pageTextLight,
+                paddingTop: 5,
+                width: 'fit-content',
+                ...(isNarrowWidth ? { padding: 10 } : null),
+              }}
+            >
+              <Trans>Select the login method</Trans>{' '}
+              <SvgCheveronDown width={12} height={12} />
+            </Button>
+          </View>
+          <Popover
+            triggerRef={loginMethodRef}
+            onOpenChange={value => {
+              setLoginMethodMenuOpen(value);
             }}
-            options={loginMethods?.map(m => [m.method, m.displayName])}
-          />
+            isOpen={loginMethodMenuOpen}
+          >
+            <Menu
+              items={loginMethods
+                ?.filter(f => f.method !== method)
+                .map(m => ({
+                  name: m.method,
+                  text: m.displayName,
+                }))}
+              onMenuSelect={selected => {
+                setError(null);
+                setMethod(selected);
+                setLoginMethodMenuOpen(false);
+              }}
+            />
+          </Popover>
         </View>
       )}
 
@@ -318,14 +447,6 @@ export function Login() {
           {getErrorMessage(error)}
         </Text>
       )}
-
-      {method === 'password' && (
-        <PasswordLogin setError={setError} dispatch={dispatch} />
-      )}
-
-      {method === 'openid' && <OpenIdLogin setError={setError} />}
-
-      {method === 'header' && <HeaderLogin error={error} />}
     </View>
   );
 }

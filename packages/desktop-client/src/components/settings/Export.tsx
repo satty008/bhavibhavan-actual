@@ -9,9 +9,9 @@ import { format } from 'date-fns';
 
 import { send } from 'loot-core/platform/client/fetch';
 
-import { useMetadataPref } from '../../hooks/useMetadataPref';
-
 import { Setting } from './UI';
+
+import { useMetadataPref } from '@desktop-client/hooks/useMetadataPref';
 
 export function ExportBudget() {
   const { t } = useTranslation();
@@ -26,18 +26,20 @@ export function ExportBudget() {
 
     const response = await send('export-budget');
 
-    if ('error' in response) {
+    if ('error' in response && response.error) {
       setError(response.error);
       setIsLoading(false);
       console.log('Export error code:', response.error);
       return;
     }
 
-    window.Actual.saveFile(
-      response.data,
-      `${format(new Date(), 'yyyy-MM-dd')}-${budgetName}.zip`,
-      t('Export budget'),
-    );
+    if (response.data) {
+      window.Actual.saveFile(
+        response.data,
+        `${format(new Date(), 'yyyy-MM-dd')}-${budgetName}.zip`,
+        t('Export budget'),
+      );
+    }
     setIsLoading(false);
   }
 

@@ -8,9 +8,13 @@ import { type CSSProperties } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { css } from '@emotion/css';
+import rehypeExternalLinks from 'rehype-external-links';
 import remarkGfm from 'remark-gfm';
 
-import { remarkBreaks, sequentialNewlinesPlugin } from '../util/markdown';
+import {
+  remarkBreaks,
+  sequentialNewlinesPlugin,
+} from '@desktop-client/util/markdown';
 
 const remarkPlugins = [sequentialNewlinesPlugin, remarkGfm, remarkBreaks];
 
@@ -101,7 +105,7 @@ export function Notes({
   const { isNarrowWidth } = useResponsive();
   const { t } = useTranslation();
 
-  const textAreaRef = useRef<HTMLTextAreaElement>();
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (focused && editable) {
@@ -128,7 +132,15 @@ export function Notes({
     />
   ) : (
     <Text className={css([markdownStyles, getStyle?.(editable)])}>
-      <ReactMarkdown remarkPlugins={remarkPlugins} linkTarget="_blank">
+      <ReactMarkdown
+        remarkPlugins={remarkPlugins}
+        rehypePlugins={[
+          [
+            rehypeExternalLinks,
+            { target: '_blank', rel: ['noopener', 'noreferrer'] },
+          ],
+        ]}
+      >
         {notes}
       </ReactMarkdown>
     </Text>

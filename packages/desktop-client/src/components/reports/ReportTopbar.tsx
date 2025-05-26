@@ -9,22 +9,26 @@ import {
   SvgListBullet,
   SvgQueue,
   SvgTag,
+  SvgCamera,
   SvgChartArea,
 } from '@actual-app/components/icons/v1';
 import { SpaceBetween } from '@actual-app/components/space-between';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { toPng } from 'html-to-image';
 
+import * as monthUtils from 'loot-core/shared/months';
 import {
   type CustomReportEntity,
   type RuleConditionEntity,
 } from 'loot-core/types/models';
 
-import { FilterButton } from '../filters/FiltersMenu';
-
 import { GraphButton } from './GraphButton';
 import { SaveReport } from './SaveReport';
 import { setSessionReport } from './setSessionReport';
+import { SnapshotButton } from './SnapshotButton';
+
+import { FilterButton } from '@desktop-client/components/filters/FiltersMenu';
 
 type ReportTopbarProps = {
   customReportItems: CustomReportEntity;
@@ -61,6 +65,20 @@ export function ReportTopbar({
     onReportChange({ type: 'modify' });
     setGraphType(cond);
     defaultItems(cond);
+  };
+
+  const downloadSnapshot = async () => {
+    const reportElement = document.getElementById('custom-report-content');
+    const title = report.name;
+    if (reportElement) {
+      const dataUrl = await toPng(reportElement);
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `${monthUtils.currentDay()} - ${title}.png`;
+      link.click();
+    } else {
+      console.error('Report container not found.');
+    }
   };
 
   return (
@@ -180,7 +198,6 @@ export function ReportTopbar({
       >
         <SvgTag width={15} height={15} />
       </GraphButton>
-
       <View
         style={{
           width: 1,
@@ -190,7 +207,22 @@ export function ReportTopbar({
           flexShrink: 0,
         }}
       />
-
+      <SnapshotButton
+        style={{ marginRight: 15 }}
+        title={t('Download Snapshot')}
+        onSelect={downloadSnapshot}
+      >
+        <SvgCamera width={15} height={15} />
+      </SnapshotButton>
+      <View
+        style={{
+          width: 1,
+          height: 30,
+          backgroundColor: theme.pillBorderDark,
+          marginRight: 15,
+          flexShrink: 0,
+        }}
+      />
       <SpaceBetween
         style={{
           flexWrap: 'nowrap',

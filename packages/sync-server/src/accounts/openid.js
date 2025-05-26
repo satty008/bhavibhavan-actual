@@ -1,13 +1,19 @@
-import { generators, Issuer } from 'openid-client';
+import { custom, generators, Issuer } from 'openid-client';
 import { v4 as uuidv4 } from 'uuid';
 
-import { clearExpiredSessions, getAccountDb } from '../account-db.js';
+import {
+  clearExpiredSessions,
+  getAccountDb,
+  listLoginMethods,
+} from '../account-db.js';
 import { config } from '../load-config.js';
 import {
   getUserByUsername,
   transferAllFilesFromUser,
 } from '../services/user-service.js';
 import { TOKEN_EXPIRATION_NEVER } from '../util/validate-user.js';
+
+import { checkPassword } from './password.js';
 
 export async function bootstrapOpenId(configParameter) {
   if (!('issuer' in configParameter) && !('discoveryURL' in configParameter)) {
@@ -22,6 +28,10 @@ export async function bootstrapOpenId(configParameter) {
   if (!('server_hostname' in configParameter)) {
     return { error: 'missing-server-hostname' };
   }
+
+  custom.setHttpOptionsDefaults({
+    timeout: 20 * 1000, // 20 seconds
+  });
 
   try {
     //FOR BACKWARD COMPATIBLITY:
@@ -79,7 +89,10 @@ async function setupOpenIdClient(configParameter) {
   return client;
 }
 
-export async function loginWithOpenIdSetup(returnUrl) {
+export async function loginWithOpenIdSetup(
+  returnUrl,
+  firstTimeLoginPassword = '',
+) {
   if (!returnUrl) {
     return { error: 'return-url-missing' };
   }
@@ -88,6 +101,22 @@ export async function loginWithOpenIdSetup(returnUrl) {
   }
 
   const accountDb = getAccountDb();
+
+  const { countUsersWithUserName } = accountDb.first(
+    'SELECT count(*) as countUsersWithUserName FROM users WHERE user_name <> ?',
+    [''],
+  );
+  if (countUsersWithUserName === 0) {
+    const methods = listLoginMethods();
+    if (methods.some(authMethod => authMethod.method === 'password')) {
+      const valid = checkPassword(firstTimeLoginPassword);
+
+      if (!valid) {
+        return { error: 'invalid-password' };
+      }
+    }
+  }
+
   let config = accountDb.first('SELECT extra_data FROM auth WHERE method = ?', [
     'openid',
   ]);
@@ -200,8 +229,8 @@ export async function loginWithOpenIdFinalize(body) {
       userInfo.login ??
       userInfo.email ??
       userInfo.id ??
-      userInfo.name ??
-      'default-username';
+      userInfo.sub;
+
     if (identity == null) {
       return { error: 'openid-grant-failed: no identification was found' };
     }
@@ -213,29 +242,35 @@ export async function loginWithOpenIdFinalize(body) {
           'SELECT count(*) as countUsersWithUserName FROM users WHERE user_name <> ?',
           [''],
         );
-        if (countUsersWithUserName === 0) {
+
+        // Check if user was created by another transaction
+        const existingUser = accountDb.first(
+          'SELECT id FROM users WHERE user_name = ?',
+          [identity],
+        );
+
+        if (
+          !existingUser &&
+          (countUsersWithUserName === 0 ||
+            config.get('userCreationMode') === 'login')
+        ) {
           userId = uuidv4();
-          // Check if user was created by another transaction
-          const existingUser = accountDb.first(
-            'SELECT id FROM users WHERE user_name = ?',
-            [identity],
-          );
-          if (existingUser) {
-            throw new Error('user-already-exists');
-          }
           accountDb.mutate(
-            'INSERT INTO users (id, user_name, display_name, enabled, owner, role) VALUES (?, ?, ?, 1, 1, ?)',
+            'INSERT INTO users (id, user_name, display_name, enabled, owner, role) VALUES (?, ?, ?, 1, ?, ?)',
             [
               userId,
               identity,
               userInfo.name ?? userInfo.email ?? identity,
-              'ADMIN',
+              countUsersWithUserName === 0 ? '1' : '0',
+              countUsersWithUserName === 0 ? 'ADMIN' : 'BASIC',
             ],
           );
 
-          const userFromPasswordMethod = getUserByUsername('');
-          if (userFromPasswordMethod) {
-            transferAllFilesFromUser(userId, userFromPasswordMethod.user_id);
+          if (countUsersWithUserName === 0) {
+            const userFromPasswordMethod = getUserByUsername('');
+            if (userFromPasswordMethod) {
+              transferAllFilesFromUser(userId, userFromPasswordMethod.user_id);
+            }
           }
         } else {
           const { id: userIdFromDb, display_name: displayName } =

@@ -39,6 +39,7 @@ HTTPS=true yarn start
 ```
 
 or using the dev container:
+
 ```
 HTTPS=true docker compose up --build
 ```
@@ -64,10 +65,10 @@ Run manually:
 
 ```sh
 # Run docker container
-docker run --rm --network host -v $(pwd):/work/ -w /work/ -it mcr.microsoft.com/playwright:v1.41.1-jammy /bin/bash
+docker run --rm --network host -v $(pwd):/work/ -w /work/ -it mcr.microsoft.com/playwright:v1.52.0-jammy /bin/bash
 
     # If you receive an error such as "docker: invalid reference format", please instead use the following command:
-    docker run --rm --network host -v ${pwd}:/work/ -w /work/ -it mcr.microsoft.com/playwright:v1.41.1-jammy /bin/bash
+    docker run --rm --network host -v ${pwd}:/work/ -w /work/ -it mcr.microsoft.com/playwright:v1.52.0-jammy /bin/bash
 
 # Once inside the docker container, run the VRT tests: important - they MUST be ran against a HTTPS server.
 # Use the ip and port noted earlier
@@ -82,6 +83,7 @@ E2E_START_URL=https://ip:port yarn vrt
 You can also run the tests against a remote server by passing the URL:
 
 Run in standardized docker container:
+
 ```sh
 E2E_START_URL=https://my-remote-server.com yarn vrt:docker
 
@@ -90,6 +92,7 @@ E2E_START_URL=https://my-remote-server.com yarn vrt:docker
 ```
 
 Run locally:
+
 ```sh
 E2E_START_URL=https://my-remote-server.com yarn vrt
 ```

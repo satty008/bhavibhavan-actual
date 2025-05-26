@@ -2,7 +2,6 @@ import fs from 'fs';
 import { createServer, Server } from 'http';
 import path from 'path';
 
-import ngrok from '@ngrok/ngrok';
 import {
   net,
   app,
@@ -33,12 +32,14 @@ import {
 
 import './security';
 
+const BUILD_ROOT = `${__dirname}/..`;
+
 const isPlaywrightTest = process.env.EXECUTION_CONTEXT === 'playwright';
 const isDev = !isPlaywrightTest && !app.isPackaged; // dev mode if not packaged and not playwright
 
 process.env.lootCoreScript = isDev
   ? 'loot-core/lib-dist/electron/bundle.desktop.js' // serve from local output in development (provides hot-reloading)
-  : path.resolve(__dirname, 'loot-core/lib-dist/electron/bundle.desktop.js'); // serve from build in production
+  : path.resolve(BUILD_ROOT, 'loot-core/lib-dist/electron/bundle.desktop.js'); // serve from build in production
 
 // This allows relative URLs to be resolved to app:// which makes
 // local assets load correctly
@@ -66,7 +67,7 @@ if (isPlaywrightTest) {
 // be closed automatically when the JavaScript object is garbage collected.
 let clientWin: BrowserWindow | null;
 let serverProcess: UtilityProcess | null;
-let actualServerProcess: UtilityProcess | null;
+let syncServerProcess: UtilityProcess | null;
 
 let oAuthServer: ReturnType<typeof createServer> | null;
 
@@ -206,6 +207,14 @@ async function createBackgroundProcess() {
 
 async function startSyncServer() {
   try {
+    if (syncServerProcess) {
+      logMessage(
+        'info',
+        'Sync-Server: Already started! Ignoring request to start.',
+      );
+      return;
+    }
+
     const globalPrefs = await loadGlobalPrefs();
 
     const syncServerConfig = {
@@ -229,6 +238,7 @@ async function startSyncServer() {
     const serverPath = path.join(
       // require.resolve will recursively search up the workspace for the module
       path.dirname(require.resolve('@actual-app/sync-server/package.json')),
+      'build',
       'app.js',
     );
 
@@ -265,19 +275,19 @@ async function startSyncServer() {
     let syncServerStarted = false;
 
     const syncServerPromise = new Promise<void>(resolve => {
-      actualServerProcess = utilityProcess.fork(serverPath, [], forkOptions);
+      syncServerProcess = utilityProcess.fork(serverPath, [], forkOptions);
 
-      actualServerProcess.stdout?.on('data', (chunk: Buffer) => {
+      syncServerProcess.stdout?.on('data', (chunk: Buffer) => {
         // Send the Server console.log messages to the main browser window
         logMessage('info', `Sync-Server: ${chunk.toString('utf8')}`);
       });
 
-      actualServerProcess.stderr?.on('data', (chunk: Buffer) => {
+      syncServerProcess.stderr?.on('data', (chunk: Buffer) => {
         // Send the Server console.error messages out to the main browser window
         logMessage('error', `Sync-Server: ${chunk.toString('utf8')}`);
       });
 
-      actualServerProcess.on('message', msg => {
+      syncServerProcess.on('message', msg => {
         switch (msg.type) {
           case 'server-started':
             logMessage('info', 'Sync-Server: Actual Sync Server has started!');
@@ -311,39 +321,10 @@ async function startSyncServer() {
   }
 }
 
-async function exposeSyncServer(
-  syncServerConfig: GlobalPrefsJson['syncServerConfig'],
-) {
-  const hasRequiredConfig =
-    syncServerConfig?.ngrokConfig?.authToken &&
-    syncServerConfig?.ngrokConfig?.domain &&
-    syncServerConfig?.port;
-
-  if (!hasRequiredConfig) {
-    logMessage(
-      'error',
-      'Sync-Server: Cannot expose sync server: missing ngrok settings',
-    );
-    return { error: 'Missing ngrok settings' };
-  }
-
-  try {
-    const listener = await ngrok.forward({
-      schemes: ['https'],
-      addr: syncServerConfig.port,
-      authtoken: syncServerConfig?.ngrokConfig?.authToken,
-      domain: syncServerConfig?.ngrokConfig?.domain,
-    });
-
-    logMessage(
-      'info',
-      `Sync-Server: Exposing actual server on url: ${listener.url()}`,
-    );
-    return { url: listener.url() };
-  } catch (error) {
-    logMessage('error', `Unable to run ngrok: ${error}`);
-    return { error: `Unable to run ngrok. ${error}` };
-  }
+async function stopSyncServer() {
+  syncServerProcess?.kill();
+  syncServerProcess = null;
+  logMessage('info', 'Sync-Server: Stopped');
 }
 
 async function createWindow() {
@@ -488,11 +469,8 @@ app.on('ready', async () => {
   const globalPrefs = await loadGlobalPrefs();
 
   if (globalPrefs.syncServerConfig?.autoStart) {
-    // wait for both server and ngrok to start before starting the Actual client to ensure server is available
-    await Promise.allSettled([
-      startSyncServer(),
-      exposeSyncServer(globalPrefs.syncServerConfig),
-    ]);
+    // wait for the server to start before starting the Actual client to ensure server is available
+    await startSyncServer();
   }
 
   protocol.handle('app', request => {
@@ -520,13 +498,13 @@ app.on('ready', async () => {
 
     const pathname = parsedUrl.pathname;
 
-    let filePath = path.normalize(`${__dirname}/client-build/index.html`); // default web path
+    let filePath = path.normalize(`${BUILD_ROOT}/client-build/index.html`); // default web path
 
     if (pathname.startsWith('/static')) {
       // static assets
-      filePath = path.normalize(`${__dirname}/client-build${pathname}`);
+      filePath = path.normalize(`${BUILD_ROOT}/client-build${pathname}`);
       const resolvedPath = path.resolve(filePath);
-      const clientBuildPath = path.resolve(__dirname, 'client-build');
+      const clientBuildPath = path.resolve(BUILD_ROOT, 'client-build');
 
       // Ensure filePath is within client-build directory - prevents directory traversal vulnerability
       if (!resolvedPath.startsWith(clientBuildPath)) {
@@ -586,6 +564,14 @@ ipcMain.on('get-bootstrap-data', event => {
 
   event.returnValue = payload;
 });
+
+ipcMain.handle('start-sync-server', async () => startSyncServer());
+
+ipcMain.handle('stop-sync-server', async () => stopSyncServer());
+
+ipcMain.handle('is-sync-server-running', async () =>
+  syncServerProcess ? true : false,
+);
 
 ipcMain.handle('start-oauth-server', async () => {
   const { url, server: newServer } = await createOAuthServer();

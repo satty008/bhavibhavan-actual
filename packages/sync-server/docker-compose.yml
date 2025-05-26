@@ -1,4 +1,3 @@
-
 services:
   ts-webserver-bhavibhavan-actual:
     image: tailscale/tailscale:latest

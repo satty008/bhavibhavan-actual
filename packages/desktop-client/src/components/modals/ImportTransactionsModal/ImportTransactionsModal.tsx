@@ -384,13 +384,14 @@ export function ImportTransactionsModal({
       setFilename(filename);
       setFileType(filetype);
 
-      const { errors, transactions: parsedTransactions = [] } = await send(
-        'transactions-parse-file',
-        {
-          filepath: filename,
-          options,
-        },
-      );
+      const {
+        errors,
+        transactions: parsedTransactions = [],
+        bankPreset,
+      } = await send('transactions-parse-file', {
+        filepath: filename,
+        options,
+      });
 
       let index = 0;
       const transactions = parsedTransactions.map(trans => {
@@ -423,22 +424,39 @@ export function ImportTransactionsModal({
 
         if (filetype === 'csv') {
           if (!preserveImportSettings) {
-            let mappings = prefs[`csv-mappings-${accountId}`];
-            mappings = mappings
-              ? JSON.parse(mappings)
-              : getInitialMappings(transactions);
+            const savedMappings = prefs[`csv-mappings-${accountId}`];
+            let mappings;
+            let splitMode;
+            let parseDateFormat;
+
+            if (savedMappings) {
+              mappings = JSON.parse(savedMappings);
+              splitMode = !!(mappings.outflow || mappings.inflow);
+              parseDateFormat = prefs[`parse-date-${accountId}-${filetype}`];
+            } else if (bankPreset) {
+              // A recognized bank's fixed CSV layout beats the generic
+              // "does the header contain the word amount" guesswork below.
+              mappings = {
+                date: bankPreset.dateField,
+                outflow: bankPreset.outflowField,
+                inflow: bankPreset.inflowField,
+                payee: bankPreset.payeeField,
+                notes: bankPreset.payeeField,
+                category: null,
+                inOut: null,
+                amount: null,
+              };
+              splitMode = true;
+              parseDateFormat = bankPreset.dateFormat;
+            } else {
+              mappings = getInitialMappings(transactions);
+              splitMode = !!(mappings.outflow || mappings.inflow);
+              parseDateFormat = getInitialDateFormat(transactions, mappings);
+            }
 
             // @ts-expect-error - mappings might not have outflow/inflow properties
             setFieldMappings(mappings);
-
-            // Set initial split mode based on any saved mapping
-            // @ts-expect-error - mappings might not have outflow/inflow properties
-            const splitMode = !!(mappings.outflow || mappings.inflow);
             setSplitMode(splitMode);
-
-            const parseDateFormat =
-              prefs[`parse-date-${accountId}-${filetype}`] ||
-              getInitialDateFormat(transactions, mappings);
             setParseDateFormat(
               isDateFormat(parseDateFormat) ? parseDateFormat : null,
             );

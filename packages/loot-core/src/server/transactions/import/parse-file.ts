@@ -5,6 +5,8 @@ import * as fs from '#platform/server/fs';
 import { logger } from '#platform/server/log';
 import { looselyParseAmount } from '#shared/util';
 
+import type { BankPreset } from './bank-presets';
+import { detectBankPreset, mergeContinuationRows } from './bank-presets';
 import { ofx2json } from './ofx2json';
 import { qif2json } from './qif2json';
 import { xmlCAMT2json } from './xmlcamt2json';
@@ -63,6 +65,7 @@ type ParseError = { message: string; internal: string };
 export type ParseFileResult = {
   errors: ParseError[];
   transactions?: Transaction[];
+  bankPreset?: BankPreset;
 };
 
 export type ParseFileOptions = {
@@ -151,6 +154,22 @@ async function parseCSV(
       internal: err.message,
     });
     return { errors, transactions: [] };
+  }
+
+  if (
+    options?.hasHeaderRow &&
+    Array.isArray(data) &&
+    data.length > 0 &&
+    !Array.isArray(data[0])
+  ) {
+    const bankPreset = detectBankPreset(Object.keys(data[0]));
+    if (bankPreset) {
+      return {
+        errors,
+        transactions: mergeContinuationRows(bankPreset, data),
+        bankPreset,
+      };
+    }
   }
 
   return { errors, transactions: data };
